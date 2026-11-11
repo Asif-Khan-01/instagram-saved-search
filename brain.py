@@ -17,6 +17,14 @@ from sync import DB, db
 MODEL = "qwen3-vl:4b-instruct"  # already installed for visuals.py; swap for a bigger one if plans are poor
 HIDE = {"embedding", "thumb_url", "video_url", "tags"}  # never useful in an answer
 MAX_ROWS = 500
+# Fixed so that counts add up; drawn up from a sample of real saves. After editing,
+# run `python tag.py redo`.
+TOPICS = [
+    "ai", "coding", "tech", "career", "business and money", "design and art", "anime",
+    "movies and tv", "music", "gaming", "books and poetry", "motivation", "mental health",
+    "love", "humor", "spirituality", "education", "health and fitness", "food", "travel",
+    "fashion", "other",
+]
 
 PLAN_SCHEMA = {
     "type": "object",
@@ -47,15 +55,20 @@ Choose "action":
 - "chat": greetings or questions about yourself. No data needed.
 
 Tables for "sql":
-items(id, type, username, caption, audio_title, audio_artist, url, post_date, pos, transcript, visual)
+items(id, type, username, caption, audio_title, audio_artist, url, post_date, pos, transcript, visual, topics)
   one saved item. type is 'reel' (any video) or 'post' (photo). username is the account that
   posted it. post_date is text 'YYYY-MM-DD HH:MM:SS' (when it was POSTED; the save date is
   unknown). pos is save order: 0 = saved most recently. transcript = what is said,
   visual = what is shown; both are English text and may be '' or NULL.
+  topics holds one or two of: {topics}
+  as text like 'ai, tech'. Match with topics like '%anime%'. Use it when the user asks for all
+  saves in one of these broad topics; a narrower subject (pasta recipes, resume tips) is a "search".
 all_songs(title, artist, source, url)
   every known song. source is 'Saved audio' (the user's saved songs list),
   'Used in a saved reel', 'Used in a saved post' (named by Instagram) or
   'Heard in a saved reel' (identified by listening).
+topic_counts(topic, items)
+  how many saved items each topic has. Use it for "what topics do I save most".
 songs(title, artist, seconds, url, pos)
   only the user's saved songs list, with each song's length in seconds. pos 0 = saved most recently.
 
@@ -72,6 +85,8 @@ Examples:
 "funny cat reels from 2025" -> {{"action":"search","query":"funny cats","type":"reel","username":"","date_from":"2025-01-01","date_to":"2025-12-31","summarise":false,"sql":""}}
 "songs by Drake" -> {{"action":"sql","query":"","type":"any","username":"","date_from":"","date_to":"","summarise":false,"sql":"select title, artist, source, url from all_songs where lower(artist) like '%drake%'"}}
 "everything from nasa" -> {{"action":"sql","query":"","type":"any","username":"","date_from":"","date_to":"","summarise":false,"sql":"select id, username, caption from items where lower(username) like '%nasa%' order by pos"}}
+"what topics do I save most?" -> {{"action":"sql","query":"","type":"any","username":"","date_from":"","date_to":"","summarise":false,"sql":"select topic, items from topic_counts"}}
+"show all my anime saves" -> {{"action":"sql","query":"","type":"any","username":"","date_from":"","date_to":"","summarise":false,"sql":"select id, username, caption from items where topics like '%anime%' order by pos"}}
 "what do my saved reels say about saving money?" -> {{"action":"search","query":"saving money","type":"reel","username":"","date_from":"","date_to":"","summarise":true,"sql":""}}"""
 
 ANSWERER = """You are the assistant inside a tool that searches a person's saved Instagram items.
@@ -79,7 +94,8 @@ Answer the user's question in plain English using ONLY the data given. Be brief:
 sentences, or a short bullet list for a summary. The user already sees the full table or the
 item cards below your reply, so do not repeat long lists; state the count and what stands out.
 When the data says more rows are not shown, you are seeing only a sample: give the total count
-but do not claim anything about "all" rows. If the data is empty, say nothing matched. Never invent items, accounts, songs or numbers."""
+but do not claim anything about "all" rows. If the data is empty, say nothing matched. Never invent items, accounts, songs or numbers. Do not calculate percentages, sums or
+averages yourself: report only numbers that appear in the data."""
 
 
 def ask(messages, schema=None, max_tokens=500):
@@ -94,7 +110,7 @@ def ask(messages, schema=None, max_tokens=500):
 
 def plan(question, history=(), error=None):
     """history: earlier (question, plan) pairs, oldest first. error: why the last SQL failed."""
-    messages = [{"role": "system", "content": PLANNER.format(today=datetime.date.today())}]
+    messages = [{"role": "system", "content": PLANNER.format(today=datetime.date.today(), topics=", ".join(TOPICS))}]
     for q, p in list(history)[-3:]:
         messages += [{"role": "user", "content": q}, {"role": "assistant", "content": json.dumps(p)}]
     messages.append({"role": "user", "content": question})
@@ -105,7 +121,7 @@ def plan(question, history=(), error=None):
     return p
 
 
-SCHEMA_WORDS = {"reel", "post", "saved", "audio", "used", "heard"}  # values the SQL must keep as is
+SCHEMA_WORDS = {"reel", "post", "saved", "audio", "used", "heard"} | set(" ".join(TOPICS).split())  # values the SQL must keep as is
 
 
 def fix_names(sql, question):

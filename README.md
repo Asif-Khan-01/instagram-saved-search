@@ -19,6 +19,7 @@ Ask things like:
 | `transcribe.py` | Transcribes speech in each reel with Whisper, translated to English |
 | `visuals.py` | Describes four frames of each reel with a local vision model in Ollama |
 | `listen.py` | Identifies background songs with Shazam (unofficial `shazamio` library) |
+| `tag.py` | Sorts each item into one or two of a fixed list of topics (edit `TOPICS` in `brain.py`) |
 | `brain.py` | Local model that turns a question into a topic search or a read-only database query, then writes the answer |
 | `app.py` | The chat page (Streamlit) |
 | `update.py` | Runs all the steps above for new saves |

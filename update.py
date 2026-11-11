@@ -20,6 +20,7 @@ STEPS = {
     "songs": ("Fetching your saved songs list", ["sync.py", "songs"]),
     "transcribe": ("Transcribing speech", ["transcribe.py"]),
     "visuals": ("Describing what is shown", ["visuals.py"]),
+    "tag": ("Sorting into topics", ["tag.py"]),
     "listen": ("Identifying songs by listening", ["listen.py"]),
 }
 

@@ -163,6 +163,18 @@ if st.sidebar.toggle("Song list"):
     table(songs)
     st.stop()
 
+counts = dict(con.execute("select topic, count(*) from item_topics group by topic order by 2 desc"))
+if topic := st.sidebar.selectbox("Browse a topic", list(counts), index=None,
+                                 format_func=lambda t: f"{t} ({counts[t]})"):
+    rows = con.execute(
+        """select i.* from items i join item_topics t on t.item_id = i.id
+           where t.topic = ? order by i.pos""", (topic,)).fetchall()
+    st.subheader(f"{topic}: {len(rows)} saved items")
+    if len(rows) > 48:
+        st.caption("Showing the 48 most recently saved.")
+    cards(rows[:48])
+    st.stop()
+
 if "chat" not in st.session_state:
     st.session_state.chat = []
 if q := st.chat_input("Ask about your saved items"):

@@ -35,7 +35,8 @@ def db():
     # added after the first version; transcript null = not tried yet, '' = no speech
     # visual (what is shown) follows the same null / '' convention
     for col in ("video_url text", "transcript text", "visual text",
-                "heard_title text", "heard_artist text"):  # song found by listen.py
+                "heard_title text", "heard_artist text",  # song found by listen.py
+                "topics text"):  # "ai, tech": same data as item_topics, for join-free queries
         try:
             con.execute(f"alter table items add column {col}")
         except sqlite3.OperationalError:
@@ -46,6 +47,14 @@ def db():
             seconds integer, pos integer)"""
     )
     # every song the tool knows about, whatever its source; brain.py queries this
+    # one row per topic an item has; written by tag.py
+    con.execute("create table if not exists item_topics(item_id text, topic text)")
+    con.execute("create index if not exists item_topics_item on item_topics(item_id)")
+    con.execute("drop view if exists topic_counts")
+    con.execute(
+        """create view topic_counts as
+           select topic, count(*) as items from item_topics group by topic order by items desc"""
+    )
     con.execute("drop view if exists all_songs")  # recreated so changes to it take effect
     con.execute(
         """create view all_songs as
