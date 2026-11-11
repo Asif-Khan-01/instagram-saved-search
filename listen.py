@@ -12,10 +12,12 @@ import subprocess
 import sys
 import time
 
-from sync import ROOT, db
+from sync import ROOT, db, rebuild_song_list
 
 CLIPS = ROOT / "clips"
-TODO = "video_url != '' and audio_title = ''"  # reels without a song named by Instagram
+# reels without a real song named by Instagram: none at all, or an uploader's "original
+# audio" name such as "Coding Cheatsheet", which has no artist
+TODO = "video_url != '' and (audio_title = '' or audio_artist = '')"
 
 
 def grab(con):
@@ -97,6 +99,7 @@ def main(limit=None):
     ok = grab(con)
     if limit != "clips":
         asyncio.run(identify(con, limit))
+        rebuild_song_list(con)
     return 0 if ok else 1
 
 

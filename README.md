@@ -60,6 +60,20 @@ Register-ScheduledTask -TaskName "Instagram saved search update" -Action (New-Sc
 Output goes to `update.log`. A second update will not start while one is running.
 Remove it with `Unregister-ScheduledTask -TaskName "Instagram saved search update"`.
 
+## Removing saves you have unsaved
+
+Saves you remove on Instagram stay in the tool until you run, by hand:
+
+```
+python sync.py prune          # lists what you have unsaved; changes nothing
+python sync.py prune apply    # moves those items into table items_removed
+```
+
+This reads your whole saved list, the heaviest request the tool makes, so it is not part
+of the nightly update. It refuses to change anything if the fetch had errors or returned
+less than 90% of the items it knows, since a cut-short fetch looks like mass unsaving.
+Archived items keep their transcripts and descriptions. Avoid running it while an update runs.
+
 ## Things to know
 
 - This reads your own account with your own login, but automated access is against

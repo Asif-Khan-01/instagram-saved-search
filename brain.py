@@ -63,10 +63,12 @@ items(id, type, username, caption, audio_title, audio_artist, url, post_date, po
   topics holds one or two of: {topics}
   as text like 'ai, tech'. Match with topics like '%anime%'. Use it when the user asks for all
   saves in one of these broad topics; a narrower subject (pasta recipes, resume tips) is a "search".
-all_songs(title, artist, source, url)
-  every known song. source is 'Saved audio' (the user's saved songs list),
-  'Used in a saved reel', 'Used in a saved post' (named by Instagram) or
-  'Heard in a saved reel' (identified by listening).
+song_list(title, artist, sources, times_seen, url)
+  every distinct song once. Use it for any question about the user's songs: "all my songs",
+  "songs by X", "how many songs". sources lists where it was found, any of 'Saved audio' (the
+  user's saved songs list), 'Used in a saved reel', 'Used in a saved post' (named by Instagram)
+  and 'Heard in a saved reel' (identified by listening); match with sources like '%Saved audio%'.
+  times_seen is how many times it turned up across saves.
 topic_counts(topic, items)
   how many saved items each topic has. Use it for "what topics do I save most".
 songs(title, artist, seconds, url, pos)
@@ -83,7 +85,7 @@ Unused text fields are "" and "sql" is "" unless action is "sql".
 
 Examples:
 "funny cat reels from 2025" -> {{"action":"search","query":"funny cats","type":"reel","username":"","date_from":"2025-01-01","date_to":"2025-12-31","summarise":false,"sql":""}}
-"songs by Drake" -> {{"action":"sql","query":"","type":"any","username":"","date_from":"","date_to":"","summarise":false,"sql":"select title, artist, source, url from all_songs where lower(artist) like '%drake%'"}}
+"songs by Drake" -> {{"action":"sql","query":"","type":"any","username":"","date_from":"","date_to":"","summarise":false,"sql":"select title, artist, sources, url from song_list where lower(artist) like '%drake%'"}}
 "everything from nasa" -> {{"action":"sql","query":"","type":"any","username":"","date_from":"","date_to":"","summarise":false,"sql":"select id, username, caption from items where lower(username) like '%nasa%' order by pos"}}
 "what topics do I save most?" -> {{"action":"sql","query":"","type":"any","username":"","date_from":"","date_to":"","summarise":false,"sql":"select topic, items from topic_counts"}}
 "show all my anime saves" -> {{"action":"sql","query":"","type":"any","username":"","date_from":"","date_to":"","summarise":false,"sql":"select id, username, caption from items where topics like '%anime%' order by pos"}}
@@ -209,7 +211,7 @@ def table_text(cols, rows, limit=40):
 
 
 def check():
-    db().close()  # make sure tables and the all_songs view exist
+    db().close()  # make sure the tables and views exist
     cols, rows = run_sql("select count(*) as n, embedding from items")
     assert cols == ["n"] and rows[0][0] >= 0, (cols, rows)
     for bad in ("delete from items", "update items set caption=''", "drop table songs"):

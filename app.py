@@ -25,9 +25,22 @@ def embed(texts):
     return np.array(list(model().embed(texts)), dtype=np.float32)
 
 
+def song_of(r):
+    """The item's song as (title, artist). Instagram's own song counts only when it names an
+    artist: without one it is an uploader's "original audio" label such as "Coding
+    Cheatsheet", and the song found by listening (if any) is the real one."""
+    if r["audio_title"] and r["audio_artist"]:
+        return r["audio_title"], r["audio_artist"]
+    if r["heard_title"]:
+        return r["heard_title"], r["heard_artist"]
+    return "", ""
+
+
 def text_of(r):
-    title, artist = r["audio_title"] or r["heard_title"], r["audio_artist"] or r["heard_artist"]
+    title, artist = song_of(r)
     song = f" song: {title} {artist}" if title else ""
+    if r["audio_title"] and not r["audio_artist"]:  # the label can still describe the reel
+        song += f" audio: {r['audio_title']}"
     shown = f" shown: {r['visual'][:500]}" if r["visual"] else ""
     said = f" spoken: {r['transcript']}" if r["transcript"] else ""
     # caption and visuals are capped so the model's ~2000-character window has room
@@ -67,10 +80,10 @@ def cards(rows):
             if thumb.exists():
                 st.image(str(thumb))
             st.markdown(f"**{r['type']}** · @{r['username']}")
-            if r["audio_title"]:
-                st.caption(f"♪ {r['audio_title']} — {r['audio_artist']}")
-            elif r["heard_title"]:
-                st.caption(f"♪ heard: {r['heard_title']} — {r['heard_artist']}")
+            title, artist = song_of(r)
+            if title:
+                heard = "heard: " if title == r["heard_title"] and not r["audio_artist"] else ""
+                st.caption(f"♪ {heard}{title} — {artist}")
             st.write(r["caption"][:140] + ("…" if len(r["caption"]) > 140 else ""))
             if r["visual"]:
                 with st.expander("What is shown"):
@@ -185,7 +198,8 @@ total = con.execute("select count(*) from items").fetchone()[0]
 st.sidebar.caption(f"{total} saved items. Run `python update.py` to fetch new ones.")
 
 if st.sidebar.toggle("Song list"):
-    songs = song_links([dict(r) for r in con.execute("select * from all_songs")])
+    songs = song_links([dict(r) for r in con.execute(
+        "select title, artist, sources, times_seen, url from song_list")])
     st.subheader(f"{len(songs)} songs")
     table(songs, "all")
     st.stop()

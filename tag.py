@@ -26,7 +26,9 @@ PROMPT = (
     "Add a second topic only if the item is just as clearly about that too; most items have one. "
     "Topics: " + ", ".join(TOPICS) + ". "
     "'ai' is for AI tools and models; 'coding' for programming; 'tech' for other technology; "
-    "'motivation' only for self-improvement or inspirational content. "
+    "'motivation' only for self-improvement, discipline, mindset or inspirational advice; NOT for "
+    "heartbreak, sad or relationship posts ('love' or 'mental health'), book lists ('books and "
+    "poetry'), resume, job or study tips ('career' or 'education'), or dating tips ('love'). "
     "'other' means nothing fits and is never combined with another topic. Reply with JSON."
 )
 
