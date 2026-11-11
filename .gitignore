@@ -1,0 +1,9 @@
+# personal data: your saved items and everything derived from them
+saved.db
+last_fetch.json
+thumbs/
+frames/
+clips/
+
+__pycache__/
+.claude/

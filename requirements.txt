@@ -1,0 +1,9 @@
+gallery-dl
+yt-dlp
+streamlit
+fastembed
+numpy
+faster-whisper
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
+shazamio
