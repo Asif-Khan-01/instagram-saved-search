@@ -8,7 +8,7 @@ import streamlit as st
 from fastembed import TextEmbedding
 
 import brain
-from sync import THUMBS, db
+from sync import THUMBS, db, playlist_csv
 
 # ponytail: English-only model; it beat the small multilingual one on test queries.
 # Swap to intfloat/multilingual-e5-large (2 GB) if many captions are not English,
@@ -90,10 +90,15 @@ def song_links(rows):
     return rows
 
 
-def table(rows):
+def table(rows, key):
     links = {c: st.column_config.LinkColumn(display_text="Open")
              for c, v in (rows[0].items() if rows else []) if str(v).startswith("https://")}
     st.dataframe(rows, hide_index=True, column_config=links)
+    if rows and {"title", "artist"} <= set(rows[0]):  # a song list: offer it as a playlist
+        st.download_button("Download as playlist file", playlist_csv(rows), "playlist.csv",
+                           "text/csv", key=f"playlist-{key}",
+                           help="Import it into Spotify, YouTube Music or Apple Music with a "
+                                "playlist transfer site such as TuneMyMusic or Soundiiz.")
 
 
 def filters(p):
@@ -182,7 +187,7 @@ st.sidebar.caption(f"{total} saved items. Run `python update.py` to fetch new on
 if st.sidebar.toggle("Song list"):
     songs = song_links([dict(r) for r in con.execute("select * from all_songs")])
     st.subheader(f"{len(songs)} songs")
-    table(songs)
+    table(songs, "all")
     st.stop()
 
 counts = dict(con.execute("select topic, count(*) from item_topics group by topic order by 2 desc"))
@@ -212,12 +217,12 @@ if q := st.chat_input("Ask about your saved items"):
 if not st.session_state.chat:
     st.info("Try: list all my saved songs · how many reels per account · reels about AI tools "
             "from 2026 · summarise the career advice I saved")
-for m in st.session_state.chat:
+for n, m in enumerate(st.session_state.chat):
     st.chat_message("user").write(m["q"])
     with st.chat_message("assistant"):
         st.write(m["text"])
         if m["table"]:
-            table(m["table"])
+            table(m["table"], n)
         if m["ids"]:
             marks = ",".join("?" * len(m["ids"]))
             found = {r["id"]: r for r in con.execute(f"select * from items where id in ({marks})", m["ids"])}

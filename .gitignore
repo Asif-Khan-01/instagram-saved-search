@@ -9,3 +9,4 @@ __pycache__/
 .claude/
 update.log
 update.lock
+playlist.csv

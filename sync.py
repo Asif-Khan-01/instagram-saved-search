@@ -4,9 +4,12 @@
     python sync.py new      # only saves made since the last sync (what update.py uses)
     python sync.py 50       # only the 50 most recently saved posts
     python sync.py songs    # the Saved > Audio list (songs you saved), into table songs
+    python sync.py playlist # write every known song to playlist.csv for playlist import sites
     python sync.py --cached # re-read the last fetch without contacting Instagram
     python sync.py --check  # self-test, no network
 """
+import csv
+import io
 import json
 import sqlite3
 import subprocess
@@ -244,6 +247,21 @@ def songs():
     return 0
 
 
+def playlist_csv(rows):
+    """Songs as the CSV that playlist transfer sites import: one row per distinct song."""
+    out, seen = io.StringIO(), set()
+    w = csv.writer(out, lineterminator="\n")
+    w.writerow(["Track name", "Artist name"])
+    for r in rows:
+        title, artist = (r["title"] or "").strip(), (r["artist"] or "").strip()
+        # no artist means an Instagram "original audio" name such as "PC Tips (Part 21)",
+        # which a music service would match to something random
+        if title and artist and (title.lower(), artist.lower()) not in seen:
+            seen.add((title.lower(), artist.lower()))
+            w.writerow([title, artist])
+    return out.getvalue()
+
+
 def check():
     sample = [
         [2, {"post_shortcode": "A"}],
@@ -264,6 +282,9 @@ def check():
     assert fresh(posts, known) == ([posts[1]], False)  # reached a known save: stop
     assert fresh(posts, set()) == (posts, True)  # all new: older unseen saves may remain
     assert fresh([], known) == ([], False)
+    listed = playlist_csv([{"title": "A, b", "artist": "X"}, {"title": "a, B ", "artist": "x"},
+                           {"title": "", "artist": "Y"}, {"title": "C", "artist": None}])
+    assert listed == 'Track name,Artist name\n"A, b",X\n', listed
     got = parse_songs([
         {"track": {"audio_cluster_id": "9", "title": "T", "display_artist": "A", "duration_in_ms": 61500}},
         {"original_sound": {"audio_cluster_id": "8", "original_audio_title": "O", "ig_artist": {"username": "u"}}},
@@ -280,6 +301,11 @@ if __name__ == "__main__":
         check()
     elif arg == "new":
         sys.exit(new())
+    elif arg == "playlist":
+        con = db()
+        (ROOT / "playlist.csv").write_text(
+            playlist_csv(con.execute("select title, artist from all_songs").fetchall()), encoding="utf-8")
+        print("wrote playlist.csv")
     elif arg == "songs":
         sys.exit(songs())
     elif arg == "--cached":
