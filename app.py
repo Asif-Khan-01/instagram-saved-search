@@ -110,6 +110,30 @@ def filters(p):
     return " and ".join(where), params
 
 
+SUMMARY_ITEMS = 20  # read in batches of 5: four model calls, roughly half a minute
+
+
+def summarise(q, rows):
+    """Points the saved items make about the question, each linked to the item it came
+    from. Returns the reply text and the ids of the items that were cited."""
+    # date and type are included so the model does not guess them
+    notes = [f"{r['type']} by @{r['username']}, posted {r['post_date'][:10]}: {text_of(r)[:700]}"
+             for r in rows]
+    lines, cited = [], []
+    for start in range(0, len(rows), 5):
+        for i, point in brain.points(q, notes[start:start + 5]):
+            r = rows[start + i]
+            made_up = brain.unsupported(point, notes[start + i])
+            warn = f" ⚠ *not found in that item: {', '.join(made_up)}*" if made_up else ""
+            lines.append(f"- {point} — [@{r['username']}]({r['url']}){warn}")
+            if r["id"] not in cited:
+                cited.append(r["id"])
+    if not lines:
+        return f"I read the {len(rows)} closest saves and none of them clearly covers this.", []
+    head = f"From {len(cited)} of the {len(rows)} closest saves (each point links to its source):\n\n"
+    return head + "\n".join(lines), cited
+
+
 def respond(con, q, history):
     """One assistant turn: plan with the local model, fetch, then word the reply."""
     p = brain.plan(q, history)
@@ -135,13 +159,11 @@ def respond(con, q, history):
         out["text"] = brain.answer(q, brain.table_text(cols, rows))
     elif p["action"] == "search":
         where, params = filters(p)
-        rows = search(con, p["query"] or q, where, params, k=8 if p["summarise"] else 12)
+        rows = search(con, p["query"] or q, where, params, k=SUMMARY_ITEMS if p["summarise"] else 12)
         out["ids"] = [r["id"] for r in rows]
         if p["summarise"] and rows:
-            # date and type are included so the model does not guess them
-            notes = [f"{r['type']} by @{r['username']}, posted {r['post_date'][:10]}: "
-                     f"{text_of(r)[:700]}" for r in rows]
-            out["text"] = brain.answer(q, "\n\n".join(notes))
+            out["text"], cited = summarise(q, rows)
+            out["ids"] = cited or out["ids"][:8]
         else:
             out["text"] = f"The {len(rows)} closest matches:" if rows else "Nothing matched."
     else:

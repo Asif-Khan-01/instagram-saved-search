@@ -158,6 +158,47 @@ def answer(question, data):
                 {"role": "user", "content": f"Question: {question}\n\nData:\n{data}"}])
 
 
+EXTRACTOR = """You report what a person's saved Instagram items say about their question.
+The items are numbered. For each item that is relevant to the question, write one or two short
+points in plain English: a concrete claim, tip or fact taken from that item. Give the item's
+number as "source". Skip items that are not relevant; an empty list is a fine answer.
+Use only what the item's text says. No outside knowledge, and no names, tools or numbers that
+are not in that item's text. Reply with JSON."""
+
+
+def points(question, notes):
+    """What a batch of items says about the question, as (index into notes, point) pairs.
+    The schema only allows the batch's own numbers as sources, so a point cannot cite
+    an item that was not read."""
+    schema = {
+        "type": "object",
+        "properties": {"points": {"type": "array", "maxItems": 2 * len(notes), "items": {
+            "type": "object",
+            "properties": {"source": {"enum": list(range(1, len(notes) + 1))}, "point": {"type": "string"}},
+            "required": ["source", "point"]}}},
+        "required": ["points"],
+    }
+    numbered = "\n\n".join(f"[{n}] {text}" for n, text in enumerate(notes, 1))
+    reply = ask([{"role": "system", "content": EXTRACTOR},
+                 {"role": "user", "content": f"Question: {question}\n\nItems:\n{numbered}"}], schema, 700)
+    return [(p["source"] - 1, p["point"].strip()) for p in json.loads(reply)["points"] if p["point"].strip()]
+
+
+def unsupported(point, source):
+    """Names and numbers in a point that do not occur in the item it cites: the usual
+    shape of a made-up detail. Words that only start a sentence are not counted."""
+    source = source.lower()
+    missing = []
+    for m in re.finditer(r"[A-Z][\w'-]+|\d[\d.,]*\d|\d", point):
+        starts_sentence = m.start() == 0 or point[:m.start()].rstrip().endswith((".", "!", "?", ":"))
+        word = m.group(0)
+        if word[0].isalpha() and starts_sentence:
+            continue
+        if word.lower() not in source and word.lower().rstrip("s") not in source:
+            missing.append(word)
+    return missing
+
+
 def table_text(cols, rows, limit=40):
     """A result table as compact text for the answering model."""
     def cell(v):
@@ -179,6 +220,9 @@ def check():
         else:
             raise AssertionError(f"write was allowed: {bad}")
     assert table_text(["a"], [[1], [2], [3]], limit=2).endswith("1 more rows not shown")
+    src = "Keep your resume to one page and tailor it. Use LinkedIn outreach, 3 messages a day."
+    assert unsupported("Tailor your resume and use LinkedIn outreach 3 times a day.", src) == []
+    assert unsupported("Use ResumeAI to build it in 10 minutes.", src) == ["ResumeAI", "10"]
     fixed = fix_names("select 1 from all_songs where lower(artist) like '%arjit singh%' and type = 'reel'",
                       "which songs in my reels are by Arijit Singh?")
     assert "'%arijit singh%'" in fixed and "type = 'reel'" in fixed, fixed
