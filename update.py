@@ -8,6 +8,7 @@ stop and rerun. A failed step does not stop the later ones, except the first:
 without a sync there is nothing new to work on.
 """
 import json
+import msvcrt
 import subprocess
 import sys
 import time
@@ -42,6 +43,15 @@ def main(names):
     if unknown:
         print(f"unknown step {unknown}; choose from {list(STEPS)}")
         return 2
+    # Two updates at once would transcribe and look up the same reels twice. Windows
+    # drops this lock by itself when the process ends, even after a crash.
+    lock = open(ROOT / "update.lock", "w")
+    try:
+        msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError:
+        print("another update is already running; nothing done")
+        return 0
+    print(f"Update started {time.strftime('%Y-%m-%d %H:%M')}", flush=True)
     failed = []
     for name in names or STEPS:
         label, args = STEPS[name]

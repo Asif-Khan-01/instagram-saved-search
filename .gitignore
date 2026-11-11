@@ -7,3 +7,5 @@ clips/
 
 __pycache__/
 .claude/
+update.log
+update.lock

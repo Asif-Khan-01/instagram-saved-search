@@ -48,6 +48,18 @@ Built and tested on Windows 11 with an NVIDIA RTX 4050 (6 GB) and Python 3.13.
    The first run takes hours for a few hundred reels. Later, `python update.py`
    (or `Update saves.bat`) only handles new saves.
 
+## Automatic updates (Windows)
+
+To run the update every day at 9 PM with no window, register a scheduled task once
+from PowerShell, with the path changed to where you put this folder:
+
+```
+Register-ScheduledTask -TaskName "Instagram saved search update" -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument '"C:\path\to\update-hidden.vbs"') -Trigger (New-ScheduledTaskTrigger -Daily -At 21:00) -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable)
+```
+
+Output goes to `update.log`. A second update will not start while one is running.
+Remove it with `Unregister-ScheduledTask -TaskName "Instagram saved search update"`.
+
 ## Things to know
 
 - This reads your own account with your own login, but automated access is against
